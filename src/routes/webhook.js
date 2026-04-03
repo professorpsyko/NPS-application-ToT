@@ -12,7 +12,8 @@ const WEBHOOK_SECRET = process.env.HUBSPOT_WEBHOOK_SECRET;
 // HubSpot Workflow HTTP actions don't use HMAC signatures.
 // We verify a shared secret sent as a custom request header instead.
 function verifySecret(req) {
-  const incoming = req.headers['x-webhook-secret'];
+  // HubSpot lowercases header names; secret name set in workflow is NPS_WEBHOOK_SECRET
+  const incoming = req.headers['nps_webhook_secret'];
   if (!incoming || !WEBHOOK_SECRET) return false;
   try {
     return crypto.timingSafeEqual(
