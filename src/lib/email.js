@@ -53,10 +53,10 @@ function buildHtml(firstName, token, baseUrl) {
           <!-- Logo -->
           <tr>
             <td align="center" style="padding:32px 40px 8px;">
-              <span style="font-family:'Georgia',serif;font-size:18px;letter-spacing:2px;
-                           color:#2c3e6b;font-weight:normal;text-transform:uppercase;">
-                Teachers&#x202F;of&#x202F;Tomorrow
-              </span>
+              <img src="https://info.teachersoftomorrow.org/hubfs/3-Logos/Teachers%20of%20Tomorrow/ToT-Blue_Horizontal.png"
+                   alt="Teachers of Tomorrow"
+                   width="200"
+                   style="display:block;border:0;max-width:200px;">
             </td>
           </tr>
 
@@ -113,7 +113,7 @@ function buildHtml(firstName, token, baseUrl) {
             <td align="center" style="padding:20px 0 0;
                                       font-size:11px;color:#a0a8b4;line-height:1.6;">
               This survey is a service from Teachers of Tomorrow.<br>
-              #TEACH &bull; 1098 Ann Arbor Rd. W., Plymouth, MI 48170 United States
+              Teachers of Tomorrow &bull; 1098 Ann Arbor Rd. W., Plymouth, MI 48170 United States
             </td>
           </tr>
         </table>
