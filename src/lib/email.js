@@ -113,7 +113,7 @@ function buildHtml(firstName, token, baseUrl) {
             <td align="center" style="padding:20px 0 0;
                                       font-size:11px;color:#a0a8b4;line-height:1.6;">
               This survey is a service from Teachers of Tomorrow.<br>
-              Teachers of Tomorrow &bull; 1098 Ann Arbor Rd. W., Plymouth, MI 48170 United States
+              Teachers of Tomorrow &bull; 2401 Fountain View Dr., Suite 700, Houston, TX 77057
             </td>
           </tr>
         </table>
