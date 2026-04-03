@@ -1,86 +1,62 @@
 // src/routes/webhook.js
-const express  = require('express');
-const crypto   = require('crypto');
-const router   = express.Router();
+const express = require('express');
+const crypto  = require('crypto');
+const router  = express.Router();
 
-const { getContact, NPS_TRIGGER_PROPERTY } = require('../lib/hubspot');
+const { getContact } = require('../lib/hubspot');
 const { sendNpsEmail } = require('../lib/email');
 const { sign }         = require('../lib/token');
 
 const WEBHOOK_SECRET = process.env.HUBSPOT_WEBHOOK_SECRET;
 
-// HubSpot v3 signature verification:
-// HMAC-SHA256 of (clientSecret + httpMethod + fullUrl + rawBody)
-function verifyHubSpotSignature(req) {
-  const sig = req.headers['x-hubspot-signature-v3'];
-  if (!sig) return false;
-
-  const url     = `${process.env.BASE_URL}${req.originalUrl}`;
-  const rawBody = req.rawBody;
-  const toSign  = `POST${url}${rawBody}`;
-
-  const expected = crypto
-    .createHmac('sha256', WEBHOOK_SECRET)
-    .update(toSign)
-    .digest('base64');
-
+// HubSpot Workflow HTTP actions don't use HMAC signatures.
+// We verify a shared secret sent as a custom request header instead.
+function verifySecret(req) {
+  const incoming = req.headers['x-webhook-secret'];
+  if (!incoming || !WEBHOOK_SECRET) return false;
   try {
     return crypto.timingSafeEqual(
-      Buffer.from(sig),
-      Buffer.from(expected)
+      Buffer.from(incoming),
+      Buffer.from(WEBHOOK_SECRET)
     );
   } catch {
-    // Buffer lengths differ if sig is garbage — treat as invalid
     return false;
   }
 }
 
-router.post('/hubspot', express.raw({ type: '*/*' }), async (req, res) => {
-  req.rawBody = req.body.toString('utf8');
-
-  if (!verifyHubSpotSignature(req)) {
-    console.warn('[webhook] Rejected — bad signature');
-    return res.status(401).json({ error: 'Invalid signature' });
+// HubSpot workflow sends: { "contactId": "{{contact.hs_object_id}}" }
+router.post('/hubspot', express.json(), async (req, res) => {
+  if (!verifySecret(req)) {
+    console.warn('[webhook] Rejected — bad secret');
+    return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  let events;
-  try {
-    events = JSON.parse(req.rawBody);
-  } catch {
-    return res.status(400).json({ error: 'Bad JSON' });
+  const contactId = String(req.body?.contactId || '').trim();
+  if (!contactId) {
+    return res.status(400).json({ error: 'Missing contactId' });
   }
 
-  // Respond immediately — HubSpot requires < 5 s
+  // Respond immediately — HubSpot requires a response within 5 seconds
   res.status(200).json({ received: true });
 
-  for (const event of events) {
-    try {
-      // Only act on send_nps_tot_b2c being set to true (HubSpot sends "true" as string)
-      if (event.subscriptionType !== 'contact.propertyChange') continue;
-      if (event.propertyName     !== NPS_TRIGGER_PROPERTY)     continue;
+  // Process asynchronously after responding
+  try {
+    const contact   = await getContact(contactId);
+    const props     = contact.properties;
+    const email     = props.email;
+    const firstName = props.firstname || '';
 
-      // HubSpot single-checkbox "Yes" sends propertyValue = "true"
-      if (String(event.propertyValue).toLowerCase() !== 'true') continue;
-
-      const contactId = String(event.objectId);
-      const contact   = await getContact(contactId);
-      const props     = contact.properties;
-
-      const email     = props.email;
-      const firstName = props.firstname || '';
-
-      if (!email) {
-        console.warn(`[webhook] Contact ${contactId} has no email — skipping`);
-        continue;
-      }
-
-      const token = sign(contactId);
-      await sendNpsEmail(email, firstName, token);
-      console.log(`[webhook] NPS email sent → contact ${contactId} <${email}>`);
-
-    } catch (err) {
-      console.error('[webhook] Error processing event:', err);
+    if (!email) {
+      console.warn(`[webhook] Contact ${contactId} has no email — skipping`);
+      return;
     }
+
+    const token = sign(contactId);
+    await sendNpsEmail(email, firstName, token);
+    console.log(`[webhook] NPS email sent → contact ${contactId} <${email}>`);
+
+  } catch (err) {
+    console.error('[webhook] Error processing contact:', err);
   }
 });
 
