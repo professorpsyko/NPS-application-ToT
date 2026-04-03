@@ -1,15 +1,7 @@
 // src/lib/email.js
-const nodemailer = require('nodemailer');
+const sgMail = require('@sendgrid/mail');
 
-const transporter = nodemailer.createTransport({
-  host:   process.env.SMTP_HOST,
-  port:   465,
-  secure: true,  // port 465 uses SSL directly — avoids Railway's STARTTLS block on 587
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 function buildScoreLinks(token, baseUrl) {
   return Array.from({ length: 11 }, (_, i) => {
@@ -137,23 +129,25 @@ async function sendNpsEmail(to, firstName, token) {
   const baseUrl = process.env.BASE_URL;
   const html    = buildHtml(firstName, token, baseUrl);
 
-  await transporter.sendMail({
-    from:    `"${process.env.EMAIL_FROM_NAME}" <${process.env.EMAIL_FROM}>`,
+  const textLines = [
+    `Hi ${firstName || 'there'},`,
+    '',
+    'How likely is it that you would recommend Teachers of Tomorrow to a friend or colleague?',
+    '',
+    ...Array.from({ length: 11 }, (_, i) => {
+      const url = `${baseUrl}/nps/respond?token=${encodeURIComponent(token)}&score=${i}`;
+      return `${i}: ${url}`;
+    }),
+    '',
+    '0 = Not at all likely   10 = Extremely likely',
+  ];
+
+  await sgMail.send({
+    from:    { email: process.env.EMAIL_FROM, name: process.env.EMAIL_FROM_NAME },
     to,
     subject: 'Hey, how are we doing?',
     html,
-    text: [
-      `Hi ${firstName || 'there'},`,
-      '',
-      'How likely is it that you would recommend Teachers of Tomorrow to a friend or colleague?',
-      '',
-      ...Array.from({ length: 11 }, (_, i) => {
-        const url = `${baseUrl}/nps/respond?token=${encodeURIComponent(token)}&score=${i}`;
-        return `${i}: ${url}`;
-      }),
-      '',
-      '0 = Not at all likely   10 = Extremely likely',
-    ].join('\n'),
+    text: textLines.join('\n'),
   });
 }
 
