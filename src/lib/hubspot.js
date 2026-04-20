@@ -2,9 +2,7 @@
 const https = require('https');
 
 const TOKEN = process.env.HUBSPOT_ACCESS_TOKEN;
-
-// HubSpot property that triggers NPS send
-const NPS_TRIGGER_PROPERTY = 'send_nps_tot_b2c';
+const NINETY_DAYS_MS = 90 * 24 * 60 * 60 * 1000;
 
 function hubspotRequest(method, path, body) {
   return new Promise((resolve, reject) => {
@@ -39,44 +37,46 @@ function hubspotRequest(method, path, body) {
   });
 }
 
-// HubSpot property internal names (confirmed from Property Settings)
-const NPS_SCORE_PROPERTY    = 'nps_score_tot_b2c';     // field type: Number
-const NPS_CATEGORY_PROPERTY = 'nps_category_tot_b2c';  // field type: Single-line text (create this if not yet done)
-const NPS_DATE_PROPERTY     = 'nps_date_tot_b2c';      // field type: Date picker
-
 // HubSpot date picker fields require a Unix timestamp in milliseconds at midnight UTC.
-// Sending a YYYY-MM-DD string will be silently rejected by the API.
 function toHubSpotDate(date) {
   const d = new Date(date);
-  // Zero out time to midnight UTC
   d.setUTCHours(0, 0, 0, 0);
-  return d.getTime(); // e.g. 1743638400000
+  return d.getTime();
 }
 
-// Fetch contact to get email + first name
-async function getContact(contactId) {
-  return hubspotRequest(
-    'GET',
-    `/crm/v3/objects/contacts/${contactId}?properties=email,firstname,${NPS_TRIGGER_PROPERTY}`
-  );
+// Returns true if the given HubSpot date value is within the last 90 days.
+function isWithin90Days(dateValue) {
+  if (!dateValue) return false;
+  const ts = Number(dateValue);
+  if (isNaN(ts)) return false;
+  return (Date.now() - ts) < NINETY_DAYS_MS;
 }
 
-// Update NPS fields and clear the trigger checkbox
-async function updateNpsResponse(contactId, score) {
+// Fetch contact — reads email, firstname, and the brand's trigger + date properties.
+async function getContact(contactId, brand) {
+  const props = [
+    'email',
+    'firstname',
+    brand.properties.trigger,
+    brand.properties.date,
+  ].join(',');
+
+  return hubspotRequest('GET', `/crm/v3/objects/contacts/${contactId}?properties=${props}`);
+}
+
+// Write NPS score/category/date back to HubSpot and clear the trigger checkbox.
+async function updateNpsResponse(contactId, score, brand) {
   const category =
     score >= 9 ? 'Promoter' :
     score >= 7 ? 'Passive'  :
                  'Detractor';
 
   const properties = {
-    [NPS_SCORE_PROPERTY]:    String(score),
-    [NPS_CATEGORY_PROPERTY]: category,
-    // Date picker: must be Unix ms timestamp at midnight UTC — NOT a date string
-    [NPS_DATE_PROPERTY]:     toHubSpotDate(new Date()),
-
-    // Clear the trigger checkbox.
-    // Empty string clears the field entirely (no "Yes"/"No" shown on the record).
-    [NPS_TRIGGER_PROPERTY]:  '',
+    [brand.properties.score]:    String(score),
+    [brand.properties.category]: category,
+    [brand.properties.date]:     toHubSpotDate(new Date()),
+    // Empty string clears the single-checkbox field entirely.
+    [brand.properties.trigger]:  '',
   };
 
   await hubspotRequest(
@@ -88,4 +88,4 @@ async function updateNpsResponse(contactId, score) {
   return category;
 }
 
-module.exports = { getContact, updateNpsResponse, NPS_TRIGGER_PROPERTY };
+module.exports = { getContact, updateNpsResponse, isWithin90Days };

@@ -4,11 +4,14 @@ const crypto = require('crypto');
 const SECRET = process.env.TOKEN_SECRET;
 const TTL    = parseInt(process.env.TOKEN_TTL_SECONDS, 10);
 
-function sign(contactId) {
+// brand is stored in the token so the respond route knows which HubSpot
+// properties to update without trusting a query parameter.
+function sign(contactId, brand) {
   const payload = {
-    sub: contactId,
-    iat: Math.floor(Date.now() / 1000),
-    jti: crypto.randomBytes(16).toString('hex'), // unique per token — replay protection key
+    sub:   contactId,
+    brand,
+    iat:   Math.floor(Date.now() / 1000),
+    jti:   crypto.randomBytes(16).toString('hex'),
   };
 
   const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url');
@@ -51,7 +54,7 @@ function verify(token) {
   const now = Math.floor(Date.now() / 1000);
   if (now - payload.iat > TTL) throw new Error('TOKEN_EXPIRED');
 
-  return payload; // { sub: contactId, iat, jti }
+  return payload; // { sub: contactId, brand, iat, jti }
 }
 
 module.exports = { sign, verify };

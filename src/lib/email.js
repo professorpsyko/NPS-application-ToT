@@ -28,8 +28,9 @@ function buildScoreLinks(token, baseUrl) {
   }).join('');
 }
 
-function buildHtml(firstName, token, baseUrl) {
+function buildHtml(firstName, token, baseUrl, brand) {
   const scoreLinks = buildScoreLinks(token, baseUrl);
+  const accent     = brand.accentColor;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -47,23 +48,23 @@ function buildHtml(firstName, token, baseUrl) {
 
           <!-- Top accent bar -->
           <tr>
-            <td style="background:#2c3e6b;height:6px;font-size:0;line-height:0;">&nbsp;</td>
+            <td style="background:${accent};height:6px;font-size:0;line-height:0;">&nbsp;</td>
           </tr>
 
           <!-- Logo -->
           <tr>
             <td align="center" style="padding:32px 40px 8px;">
-              <img src="https://info.teachersoftomorrow.org/hubfs/3-Logos/Teachers%20of%20Tomorrow/ToT-Blue_Horizontal.png"
-                   alt="Teachers of Tomorrow"
-                   width="200"
-                   style="display:block;border:0;max-width:200px;">
+              <img src="${brand.logoUrl}"
+                   alt="${brand.name}"
+                   width="${brand.logoWidth}"
+                   style="display:block;border:0;max-width:${brand.logoWidth}px;">
             </td>
           </tr>
 
           <!-- Headline -->
           <tr>
             <td align="center" style="padding:8px 40px 28px;">
-              <h1 style="margin:0;font-size:22px;font-weight:700;color:#2c3e6b;">
+              <h1 style="margin:0;font-size:22px;font-weight:700;color:${accent};">
                 ${firstName ? firstName + ', your' : 'Your'} opinion matters
               </h1>
             </td>
@@ -72,10 +73,10 @@ function buildHtml(firstName, token, baseUrl) {
           <!-- Question -->
           <tr>
             <td align="center" style="padding:0 40px 24px;">
-              <p style="margin:0;font-size:15px;font-weight:700;color:#2c3e6b;
+              <p style="margin:0;font-size:15px;font-weight:700;color:${accent};
                         line-height:1.5;text-align:center;">
                 How likely is it that you would recommend<br>
-                Teachers of Tomorrow to a friend or colleague?
+                ${brand.name} to a friend or colleague?
               </p>
             </td>
           </tr>
@@ -112,8 +113,8 @@ function buildHtml(firstName, token, baseUrl) {
           <tr>
             <td align="center" style="padding:20px 0 0;
                                       font-size:11px;color:#a0a8b4;line-height:1.6;">
-              This survey is a service from Teachers of Tomorrow.<br>
-              Teachers of Tomorrow &bull; 2401 Fountain View Dr., Suite 700, Houston, TX 77057
+              This survey is a service from ${brand.name}.<br>
+              ${brand.name} &bull; ${brand.address}
             </td>
           </tr>
         </table>
@@ -125,14 +126,14 @@ function buildHtml(firstName, token, baseUrl) {
 </html>`;
 }
 
-async function sendNpsEmail(to, firstName, token) {
+async function sendNpsEmail(to, firstName, token, brand) {
   const baseUrl = process.env.BASE_URL;
-  const html    = buildHtml(firstName, token, baseUrl);
+  const html    = buildHtml(firstName, token, baseUrl, brand);
 
   const textLines = [
     `Hi ${firstName || 'there'},`,
     '',
-    'How likely is it that you would recommend Teachers of Tomorrow to a friend or colleague?',
+    `How likely is it that you would recommend ${brand.name} to a friend or colleague?`,
     '',
     ...Array.from({ length: 11 }, (_, i) => {
       const url = `${baseUrl}/nps/respond?token=${encodeURIComponent(token)}&score=${i}`;
@@ -143,7 +144,7 @@ async function sendNpsEmail(to, firstName, token) {
   ];
 
   await sgMail.send({
-    from:    { email: process.env.EMAIL_FROM, name: process.env.EMAIL_FROM_NAME },
+    from:    { email: process.env.EMAIL_FROM, name: brand.name },
     to,
     subject: 'Hey, how are we doing?',
     html,

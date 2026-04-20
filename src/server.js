@@ -2,10 +2,14 @@
 require('dotenv').config();
 
 const express = require('express');
+const path    = require('path');
 const app     = express();
 
 const webhookRouter = require('./routes/webhook');
 const respondRouter = require('./routes/respond');
+
+// Serve brand logos and other static assets
+app.use(express.static(path.join(__dirname, '../public')));
 
 // Health check
 app.get('/health', (req, res) => res.json({ ok: true }));

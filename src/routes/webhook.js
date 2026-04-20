@@ -3,16 +3,14 @@ const express = require('express');
 const crypto  = require('crypto');
 const router  = express.Router();
 
-const { getContact } = require('../lib/hubspot');
-const { sendNpsEmail } = require('../lib/email');
-const { sign }         = require('../lib/token');
+const { getContact, isWithin90Days } = require('../lib/hubspot');
+const { sendNpsEmail }               = require('../lib/email');
+const { sign }                       = require('../lib/token');
+const { getBrand, VALID_BRANDS }     = require('../config/brands');
 
 const WEBHOOK_SECRET = process.env.HUBSPOT_WEBHOOK_SECRET;
 
-// HubSpot Workflow HTTP actions don't use HMAC signatures.
-// We verify a shared secret sent as a custom request header instead.
 function verifySecret(req) {
-  // HubSpot lowercases header names; secret name set in workflow is NPS_WEBHOOK_SECRET
   const incoming = req.headers['nps_webhook_secret'];
   if (!incoming || !WEBHOOK_SECRET) return false;
   try {
@@ -25,7 +23,10 @@ function verifySecret(req) {
   }
 }
 
-// HubSpot workflow sends: { "contactId": "{{contact.hs_object_id}}" }
+// HubSpot workflow sends:
+// { "contactId": "{{contact.hs_object_id}}", "brand": "tot" }
+//
+// Brand must be one of: tot, tll, teach, sk12
 router.post('/hubspot', express.json(), async (req, res) => {
   if (!verifySecret(req)) {
     console.warn('[webhook] Rejected — bad secret');
@@ -33,8 +34,13 @@ router.post('/hubspot', express.json(), async (req, res) => {
   }
 
   const contactId = String(req.body?.contactId || '').trim();
+  const brandKey  = String(req.body?.brand     || '').trim();
+
   if (!contactId) {
     return res.status(400).json({ error: 'Missing contactId' });
+  }
+  if (!brandKey || !VALID_BRANDS.includes(brandKey)) {
+    return res.status(400).json({ error: `Invalid or missing brand. Must be one of: ${VALID_BRANDS.join(', ')}` });
   }
 
   // Respond immediately — HubSpot requires a response within 5 seconds
@@ -42,22 +48,30 @@ router.post('/hubspot', express.json(), async (req, res) => {
 
   // Process asynchronously after responding
   try {
-    const contact   = await getContact(contactId);
-    const props     = contact.properties;
-    const email     = props.email;
+    const brand   = getBrand(brandKey);
+    const contact = await getContact(contactId, brand);
+    const props   = contact.properties;
+    const email   = props.email;
     const firstName = props.firstname || '';
 
     if (!email) {
-      console.warn(`[webhook] Contact ${contactId} has no email — skipping`);
+      console.warn(`[webhook] Contact ${contactId} has no email — skipping (brand: ${brandKey})`);
       return;
     }
 
-    const token = sign(contactId);
-    await sendNpsEmail(email, firstName, token);
-    console.log(`[webhook] NPS email sent → contact ${contactId} <${email}>`);
+    // 90-day cooldown — skip if contact was surveyed for this brand within the last 90 days
+    const lastSurveyDate = props[brand.properties.date];
+    if (isWithin90Days(lastSurveyDate)) {
+      console.log(`[webhook] Skipping — contact ${contactId} surveyed within 90 days (brand: ${brandKey})`);
+      return;
+    }
+
+    const token = sign(contactId, brandKey);
+    await sendNpsEmail(email, firstName, token, brand);
+    console.log(`[webhook] NPS email sent → contact ${contactId} <${email}> (brand: ${brandKey})`);
 
   } catch (err) {
-    console.error('[webhook] Error processing contact:', err);
+    console.error(`[webhook] Error processing contact ${contactId} (brand: ${brandKey}):`, err);
   }
 });
 
