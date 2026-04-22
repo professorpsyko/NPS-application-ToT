@@ -88,4 +88,16 @@ async function updateNpsResponse(contactId, score, brand) {
   return category;
 }
 
-module.exports = { getContact, updateNpsResponse, isWithin90Days };
+// Returns true if a score has already been recorded for this brand on this contact.
+// Used as replay protection — prevents a second score button click from overwriting
+// the first response. HubSpot is the store; no external cache needed.
+async function hasResponded(contactId, brand) {
+  const result = await hubspotRequest(
+    'GET',
+    `/crm/v3/objects/contacts/${contactId}?properties=${brand.properties.score}`
+  );
+  const score = result.properties?.[brand.properties.score];
+  return score !== null && score !== undefined && score !== '';
+}
+
+module.exports = { getContact, updateNpsResponse, isWithin90Days, hasResponded };

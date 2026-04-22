@@ -4,12 +4,9 @@ const fs      = require('fs');
 const path    = require('path');
 const router  = express.Router();
 
-const { verify }            = require('../lib/token');
-const { consumeToken }      = require('../lib/db');
-const { updateNpsResponse } = require('../lib/hubspot');
-const { getBrand }          = require('../config/brands');
-
-const TTL = parseInt(process.env.TOKEN_TTL_SECONDS, 10);
+const { verify }                              = require('../lib/token');
+const { updateNpsResponse, hasResponded }     = require('../lib/hubspot');
+const { getBrand }                            = require('../config/brands');
 
 const neutralHtml = fs.readFileSync(
   path.join(__dirname, '../views/thank-you-neutral.html'), 'utf8'
@@ -124,9 +121,10 @@ router.get('/respond', async (req, res) => {
     return res.status(400).send('This survey link is invalid.');
   }
 
-  // 4. Replay protection — one click = one response
-  const consumed = await consumeToken(jti, TTL);
-  if (!consumed) {
+  // 4. Replay protection — check HubSpot directly
+  // If a score is already recorded for this brand, the contact already responded.
+  const alreadyResponded = await hasResponded(contactId, brand);
+  if (alreadyResponded) {
     return res.status(200).send(`
       <html><body style="font-family:Arial,sans-serif;text-align:center;padding:60px;">
         <h2>We already have your response!</h2>
