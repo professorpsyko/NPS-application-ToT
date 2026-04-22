@@ -59,6 +59,12 @@ router.post('/hubspot', express.json(), async (req, res) => {
       return;
     }
 
+    // Enabled check — brand must be switched on in brands.js before it will send
+    if (!brand.enabled) {
+      console.log(`[webhook] Brand "${brandKey}" is not yet enabled — skipping`);
+      return;
+    }
+
     // 90-day cooldown — skip if contact was surveyed for this brand within the last 90 days
     const lastSurveyDate = props[brand.properties.date];
     if (isWithin90Days(lastSurveyDate)) {

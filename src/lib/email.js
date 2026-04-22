@@ -144,7 +144,7 @@ async function sendNpsEmail(to, firstName, token, brand) {
   ];
 
   await sgMail.send({
-    from:    { email: process.env.EMAIL_FROM, name: brand.name },
+    from:    { email: brand.fromEmail, name: brand.name },
     to,
     subject: 'Hey, how are we doing?',
     html,
