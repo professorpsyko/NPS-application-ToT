@@ -1,6 +1,7 @@
 # Secrets — never commit
 .env
 .env.txt
+local.settings.json
 
 # Node
 node_modules/

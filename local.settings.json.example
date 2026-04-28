@@ -1,0 +1,13 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "",
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+    "BASE_URL": "http://localhost:7071",
+    "TOKEN_SECRET": "generate-with-node-crypto-randombytes-32-hex",
+    "TOKEN_TTL_SECONDS": "604800",
+    "HUBSPOT_ACCESS_TOKEN": "pat-na1-...",
+    "HUBSPOT_WEBHOOK_SECRET": "...",
+    "SENDGRID_API_KEY": "SG...."
+  }
+}
