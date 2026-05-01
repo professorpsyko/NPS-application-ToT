@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <title>Thank You — Teachers of Tomorrow</title>
+  <title>Thank You</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -43,31 +43,27 @@
 <div class="card">
   <h1>Thank you for your feedback!</h1>
   <p>
-    We're so glad you've had a great experience with Teachers of Tomorrow.<br><br>
+    We're so glad you've had a great experience with __BRAND_NAME__.<br><br>
     If you'd like to share your experience publicly, we'd genuinely appreciate
-    a review — it helps other educators find us.
+    a review &mdash; it helps others find us.
   </p>
-  <a id="trustpilot-btn" class="cta" href="__TRUSTPILOT_URL__">
-    Leave a review on Trustpilot
-  </a>
-  <p class="countdown" id="countdown">
+  <a class="cta" href="__TRUSTPILOT_URL__">Leave a review on Trustpilot</a>
+  <p class="countdown">
     Redirecting in <span id="seconds">3</span> seconds&hellip;
   </p>
 </div>
-
 <script>
-  // Page works without JS — the link above is always clickable.
-  // JS adds the auto-redirect countdown for convenience.
+  // Page works without JS; the link above is always clickable.
   (function () {
-    var TRUSTPILOT = '__TRUSTPILOT_URL__';
-    var s  = 3;
-    var el = document.getElementById('seconds');
+    var url = '__TRUSTPILOT_URL__';
+    var s   = 3;
+    var el  = document.getElementById('seconds');
     var timer = setInterval(function () {
       s--;
       el.textContent = s;
       if (s <= 0) {
         clearInterval(timer);
-        window.location.href = TRUSTPILOT;
+        window.location.href = url;
       }
     }, 1000);
   }());

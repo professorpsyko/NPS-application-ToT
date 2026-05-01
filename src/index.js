@@ -1,6 +1,5 @@
 // src/index.js
-// Entry point for Azure Functions v4 programming model.
-// Each require() registers one or more HTTP-triggered functions.
+// Entry point for Azure Functions v4. Each require() registers HTTP handlers.
 
 require('./functions/webhook');
 require('./functions/respond');

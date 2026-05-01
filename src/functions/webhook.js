@@ -1,9 +1,8 @@
 // src/functions/webhook.js
 // HubSpot workflow webhook — POST /webhooks/hubspot
 //
-// HubSpot sends:
+// HubSpot workflow body:
 //   { "contactId": "{{contact.hs_object_id}}", "brand": "tot" }
-// brand must be one of: tot, tll, teach, sk12
 
 const { app } = require('@azure/functions');
 const crypto  = require('crypto');
@@ -18,14 +17,10 @@ const WEBHOOK_SECRET = process.env.HUBSPOT_WEBHOOK_SECRET;
 function verifySecret(headers) {
   const incoming = headers.get('nps_webhook_secret');
   if (!incoming || !WEBHOOK_SECRET) return false;
-  try {
-    return crypto.timingSafeEqual(
-      Buffer.from(incoming),
-      Buffer.from(WEBHOOK_SECRET)
-    );
-  } catch {
-    return false;
-  }
+  const a = Buffer.from(incoming);
+  const b = Buffer.from(WEBHOOK_SECRET);
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
 }
 
 app.http('webhookHubspot', {
@@ -51,26 +46,19 @@ app.http('webhookHubspot', {
     if (!contactId) {
       return { status: 400, jsonBody: { error: 'Missing contactId' } };
     }
-    if (!brandKey || !VALID_BRANDS.includes(brandKey)) {
+    if (!VALID_BRANDS.includes(brandKey)) {
       return {
         status: 400,
         jsonBody: { error: `Invalid or missing brand. Must be one of: ${VALID_BRANDS.join(', ')}` },
       };
     }
 
-    // We process synchronously: typical end-to-end is under 2 seconds,
-    // well within HubSpot's 5-second webhook timeout.
+    // Synchronous processing: typical end-to-end is well under HubSpot's 5s webhook timeout.
     try {
-      const brand = getBrand(brandKey);
-
-      if (!brand.enabled) {
-        context.log(`[webhook] Brand "${brandKey}" is not yet enabled — skipping`);
-        return { status: 200, jsonBody: { received: true, skipped: 'brand-disabled' } };
-      }
-
-      const contact = await getContact(contactId, brand);
-      const props   = contact.properties;
-      const email   = props.email;
+      const brand     = getBrand(brandKey);
+      const contact   = await getContact(contactId, brand);
+      const props     = contact.properties;
+      const email     = props.email;
       const firstName = props.firstname || '';
 
       if (!email) {
@@ -78,9 +66,7 @@ app.http('webhookHubspot', {
         return { status: 200, jsonBody: { received: true, skipped: 'no-email' } };
       }
 
-      // 90-day cooldown — skip if contact was surveyed for this brand within the last 90 days
-      const lastSurveyDate = props[brand.properties.date];
-      if (isWithin90Days(lastSurveyDate)) {
+      if (isWithin90Days(props[brand.properties.date])) {
         context.log(`[webhook] Skipping — contact ${contactId} surveyed within 90 days (brand: ${brandKey})`);
         return { status: 200, jsonBody: { received: true, skipped: '90-day-cooldown' } };
       }

@@ -1,154 +1,70 @@
 // src/lib/email.js
-const sgMail = require('@sendgrid/mail');
+const fs   = require('fs');
+const path = require('path');
 
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+const emailTemplate = fs.readFileSync(
+  path.join(__dirname, '../views/email-nps.html'),
+  'utf8'
+);
+
+// Lazy-loaded so cold starts of non-email routes don't pay for SendGrid init.
+let sgMail = null;
+function getSgMail() {
+  if (!sgMail) {
+    sgMail = require('@sendgrid/mail');
+    sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+  }
+  return sgMail;
+}
+
+function scoreUrl(baseUrl, token, score) {
+  return `${baseUrl}/nps/respond?token=${encodeURIComponent(token)}&score=${score}`;
+}
 
 function buildScoreLinks(token, baseUrl) {
-  return Array.from({ length: 11 }, (_, i) => {
-    const url = `${baseUrl}/nps/respond?token=${encodeURIComponent(token)}&score=${i}`;
-    return `
-      <td style="padding:0 4px;">
-        <a href="${url}"
-           style="
-             display:inline-block;
-             width:36px;
-             height:36px;
-             line-height:36px;
-             text-align:center;
-             border-radius:50%;
-             border:1.5px solid #8896a8;
-             color:#3d566e;
-             font-family:Arial,sans-serif;
-             font-size:14px;
-             font-weight:600;
-             text-decoration:none;
-             background:#f0f2f5;
-           ">${i}</a>
-      </td>`;
-  }).join('');
+  return Array.from({ length: 11 }, (_, i) => `
+    <td style="padding:0 4px;">
+      <a href="${scoreUrl(baseUrl, token, i)}"
+         style="display:inline-block;width:36px;height:36px;line-height:36px;
+                text-align:center;border-radius:50%;border:1.5px solid #8896a8;
+                color:#3d566e;font-family:Arial,sans-serif;font-size:14px;
+                font-weight:600;text-decoration:none;background:#f0f2f5;">${i}</a>
+    </td>`).join('');
 }
 
-function buildHtml(firstName, token, baseUrl, brand) {
-  const scoreLinks = buildScoreLinks(token, baseUrl);
-  const accent     = brand.accentColor;
-
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1.0">
-  <title>Your opinion matters</title>
-</head>
-<body style="margin:0;padding:0;background:#eef0f3;font-family:Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#eef0f3;padding:40px 0;">
-    <tr>
-      <td align="center">
-        <table width="520" cellpadding="0" cellspacing="0"
-               style="background:#ffffff;border-radius:6px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.08);">
-
-          <!-- Top accent bar -->
-          <tr>
-            <td style="background:${accent};height:6px;font-size:0;line-height:0;">&nbsp;</td>
-          </tr>
-
-          <!-- Logo -->
-          <tr>
-            <td align="center" style="padding:32px 40px 8px;">
-              <img src="${brand.logoUrl}"
-                   alt="${brand.name}"
-                   width="${brand.logoWidth}"
-                   style="display:block;border:0;max-width:${brand.logoWidth}px;">
-            </td>
-          </tr>
-
-          <!-- Headline -->
-          <tr>
-            <td align="center" style="padding:8px 40px 28px;">
-              <h1 style="margin:0;font-size:22px;font-weight:700;color:${accent};">
-                ${firstName ? firstName + ', your' : 'Your'} opinion matters
-              </h1>
-            </td>
-          </tr>
-
-          <!-- Question -->
-          <tr>
-            <td align="center" style="padding:0 40px 24px;">
-              <p style="margin:0;font-size:15px;font-weight:700;color:${accent};
-                        line-height:1.5;text-align:center;">
-                How likely is it that you would recommend<br>
-                ${brand.name} to a friend or colleague?
-              </p>
-            </td>
-          </tr>
-
-          <!-- Score buttons -->
-          <tr>
-            <td align="center" style="padding:0 40px 8px;">
-              <table cellpadding="0" cellspacing="0">
-                <tr>${scoreLinks}</tr>
-              </table>
-            </td>
-          </tr>
-
-          <!-- Labels -->
-          <tr>
-            <td style="padding:4px 48px 36px;">
-              <table width="100%" cellpadding="0" cellspacing="0">
-                <tr>
-                  <td style="font-size:11px;color:#8896a8;text-align:left;">
-                    0 &#8211; Not at all likely
-                  </td>
-                  <td style="font-size:11px;color:#8896a8;text-align:right;">
-                    10 &#8211; Extremely likely
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-
-        </table>
-
-        <!-- Footer -->
-        <table width="520" cellpadding="0" cellspacing="0">
-          <tr>
-            <td align="center" style="padding:20px 0 0;
-                                      font-size:11px;color:#a0a8b4;line-height:1.6;">
-              This survey is a service from ${brand.name}.<br>
-              ${brand.name} &bull; ${brand.address}
-            </td>
-          </tr>
-        </table>
-
-      </td>
-    </tr>
-  </table>
-</body>
-</html>`;
+function renderEmailHtml(firstName, token, baseUrl, brand) {
+  const greeting = firstName ? `${firstName}, your` : 'Your';
+  return emailTemplate
+    .replaceAll('__ACCENT__',      brand.accentColor)
+    .replaceAll('__LOGO_URL__',    brand.logoUrl)
+    .replaceAll('__LOGO_WIDTH__',  String(brand.logoWidth))
+    .replaceAll('__BRAND_NAME__',  brand.name)
+    .replaceAll('__ADDRESS__',     brand.address)
+    .replaceAll('__GREETING__',    greeting)
+    .replaceAll('__SCORE_LINKS__', buildScoreLinks(token, baseUrl));
 }
 
-async function sendNpsEmail(to, firstName, token, brand) {
-  const baseUrl = process.env.BASE_URL;
-  const html    = buildHtml(firstName, token, baseUrl, brand);
-
-  const textLines = [
+function renderEmailText(firstName, token, baseUrl, brand) {
+  return [
     `Hi ${firstName || 'there'},`,
     '',
     `How likely is it that you would recommend ${brand.name} to a friend or colleague?`,
     '',
-    ...Array.from({ length: 11 }, (_, i) => {
-      const url = `${baseUrl}/nps/respond?token=${encodeURIComponent(token)}&score=${i}`;
-      return `${i}: ${url}`;
-    }),
+    ...Array.from({ length: 11 }, (_, i) => `${i}: ${scoreUrl(baseUrl, token, i)}`),
     '',
     '0 = Not at all likely   10 = Extremely likely',
-  ];
+  ].join('\n');
+}
 
-  await sgMail.send({
+async function sendNpsEmail(to, firstName, token, brand) {
+  const baseUrl = process.env.BASE_URL;
+
+  await getSgMail().send({
     from:    { email: brand.fromEmail, name: brand.name },
     to,
     subject: 'Hey, how are we doing?',
-    html,
-    text: textLines.join('\n'),
+    html: renderEmailHtml(firstName, token, baseUrl, brand),
+    text: renderEmailText(firstName, token, baseUrl, brand),
   });
 }
 

@@ -1,6 +1,5 @@
 // src/functions/logos.js
-// Static logo serving — GET /logos/{filename}
-// Filenames are restricted to safe characters and a small set of extensions.
+// GET /logos/{filename} — static logo serving with in-memory cache.
 
 const { app } = require('@azure/functions');
 const fs      = require('fs');
@@ -15,6 +14,8 @@ const CONTENT_TYPES = {
   '.jpeg': 'image/jpeg',
 };
 
+const cache = new Map();
+
 app.http('logos', {
   methods: ['GET'],
   authLevel: 'anonymous',
@@ -25,19 +26,26 @@ app.http('logos', {
       return { status: 400, body: 'Invalid filename' };
     }
 
-    const filepath = path.join(__dirname, '../../public/logos', filename);
-    if (!fs.existsSync(filepath)) {
-      return { status: 404, body: 'Not found' };
+    if (!cache.has(filename)) {
+      const filepath = path.join(__dirname, '../../public/logos', filename);
+      try {
+        const data = fs.readFileSync(filepath);
+        const ext  = path.extname(filename).toLowerCase();
+        cache.set(filename, { data, contentType: CONTENT_TYPES[ext] });
+      } catch (err) {
+        if (err.code === 'ENOENT') return { status: 404, body: 'Not found' };
+        throw err;
+      }
     }
 
-    const ext = path.extname(filename).toLowerCase();
+    const entry = cache.get(filename);
     return {
       status: 200,
       headers: {
-        'Content-Type':  CONTENT_TYPES[ext],
+        'Content-Type':  entry.contentType,
         'Cache-Control': 'public, max-age=86400',
       },
-      body: fs.readFileSync(filepath),
+      body: entry.data,
     };
   },
 });
