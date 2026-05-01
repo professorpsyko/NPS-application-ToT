@@ -18,7 +18,7 @@ const BRANDS = {
   tot: {
     name:          'Teachers of Tomorrow',
     fromEmail:     'nps@teachersoftomorrow.org',
-    logoUrl:       'https://info.teachersoftomorrow.org/hubfs/3-Logos/Teachers%20of%20Tomorrow/ToT-Blue_Horizontal.png',
+    logoUrl:       `${process.env.BASE_URL}/logos/tot.png`,
     logoWidth:     200,
     address:       '2401 Fountain View Dr., Suite 700, Houston, TX 77057',
     accentColor:   '#2c3e6b',
